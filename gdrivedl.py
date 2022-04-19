@@ -88,20 +88,20 @@ def sanitize(filename):
     filename = unicodedata.normalize("NFKD", filename)
 
     filename = "".join(c for c in filename if c not in blacklist)
-    filename = "".join(c for c in filename if 31 < ord(c))
+    filename = "".join(c for c in filename if ord(c) > 31)
     filename = filename.rstrip(". ")
     filename = filename.strip()
 
-    if all([x == "." for x in filename]):
-        filename = "_" + filename
+    if all(x == "." for x in filename):
+        filename = f"_{filename}"
     if filename in reserved:
-        filename = "_" + filename
-    if len(filename) == 0:
+        filename = f"_{filename}"
+    if not filename:
         filename = "_"
     if len(filename) > 255:
         parts = re.split(r"/|\\", filename)[-1].split(".")
         if len(parts) > 1:
-            ext = "." + parts.pop()
+            ext = f".{parts.pop()}"
             filename = filename[: -len(ext)]
         else:
             ext = ""
@@ -121,11 +121,10 @@ def sanitize(filename):
 
 def url_to_id(url):
     for pattern in ID_PATTERNS:
-        match = pattern.search(url)
-        if match:
+        if match := pattern.search(url):
             return match.group(1)
 
-    logging.error("Unable to get ID from {}".format(url))
+    logging.error(f"Unable to get ID from {url}")
     sys.exit(1)
 
 
@@ -139,7 +138,7 @@ class GDriveDL(object):
 
     @contextmanager
     def _request(self, url):
-        logging.debug("Requesting: {}".format(url))
+        logging.debug(f"Requesting: {url}")
         req = Request(url, headers={"User-Agent": USER_AGENT})
 
         f = self._opener.open(req)
@@ -163,7 +162,7 @@ class GDriveDL(object):
                 logging.warning("Ignoring --output-document option for folder download")
             self.process_folder(id, directory)
         else:
-            logging.error("That id {} returned an unknown url {}".format(id, url))
+            logging.error(f"That id {id} returned an unknown url {url}")
             sys.exit(1)
 
     def process_folder(self, id, directory):
@@ -173,7 +172,7 @@ class GDriveDL(object):
         matches = re.findall(FOLDER_PATTERN, html)
 
         if not matches and "ServiceLogin" in html:
-            logging.error("Folder: {} does not have link sharing enabled".format(id))
+            logging.error(f"Folder: {id} does not have link sharing enabled")
             sys.exit(1)
 
         for match in matches:
@@ -211,7 +210,7 @@ class GDriveDL(object):
                 modified = datetime.strptime(modified, "%b %d")
                 modified = modified.replace(year=now.year)
         except:
-            logging.debug("Failed to convert mtime: {}".format(modified))
+            logging.debug(f"Failed to convert mtime: {modified}")
             return None
 
         return int((modified - datetime(1970, 1, 1)).total_seconds())
@@ -253,14 +252,13 @@ class GDriveDL(object):
 
         with self._request(FILE_URL.format(id=id, confirm=confirm)) as resp:
             if "ServiceLogin" in resp.url:
-                logging.error("File: {} does not have link sharing enabled".format(id))
+                logging.error(f"File: {id} does not have link sharing enabled")
                 sys.exit(1)
 
             content_disposition = resp.headers.get("content-disposition")
             if not content_disposition:
                 page = resp.read(CHUNKSIZE)
-                confirm = CONFIRM_PATTERN.search(page)
-                if confirm:
+                if confirm := CONFIRM_PATTERN.search(page):
                     return self.process_file(
                         id, directory, filename=filename, modified=modified, confirm=confirm.group(1)
                     )
